@@ -1,0 +1,14 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: energy-meter
+  namespace: sh-edge
+  labels:
+    app: energy-meter
+spec:
+  selector:
+    app: energy-meter
+  ports:
+    - name: http
+      port: 80
+      targetPort: http

@@ -1,0 +1,42 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: guest-sim
+  namespace: sh-core
+  labels:
+    app: guest-sim
+    podmind.component: traffic-generator
+spec:
+  # set replicas to 0 to silence the demo without removing the manifests
+  replicas: 1
+  selector:
+    matchLabels:
+      app: guest-sim
+  template:
+    metadata:
+      labels:
+        app: guest-sim
+        podmind.component: traffic-generator
+    spec:
+      containers:
+        - name: sim
+          image: python:3.11-slim
+          command: ["python", "/script/sim.py"]
+          envFrom:
+            - configMapRef:
+                name: guest-sim-knobs
+          resources:
+            requests:
+              cpu: 25m
+              memory: 32Mi
+            limits:
+              cpu: 100m
+              memory: 128Mi
+          volumeMounts:
+            - name: script
+              mountPath: /script
+              readOnly: true
+      volumes:
+        - name: script
+          configMap:
+            name: guest-sim-script

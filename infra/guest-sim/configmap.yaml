@@ -1,0 +1,100 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: guest-sim-knobs
+  namespace: sh-core
+data:
+  GATEWAY_URL: "http://gateway.sh-core"
+  LOGIN_RATE_PER_MIN: "20"
+  BOOKING_LAMBDA_PER_MIN: "5"
+  CHECKOUT_FLOOD_INTERVAL_S: "60"
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: guest-sim-script
+  namespace: sh-core
+data:
+  sim.py: |
+    """Guest-sim: synthetic traffic against the gateway.
+
+    No sensor traffic — sensor-ingest has its own internal ticker. We
+    only generate guest-shaped activity so the dependency graph isn't
+    quiet between chaos experiments.
+    """
+
+    import os
+    import random
+    import threading
+    import time
+    import uuid
+    from urllib import request, error
+
+    GATEWAY = os.environ.get("GATEWAY_URL", "http://gateway.sh-core")
+    LOGIN_RATE = float(os.environ.get("LOGIN_RATE_PER_MIN", "20"))
+    BOOKING_LAMBDA = float(os.environ.get("BOOKING_LAMBDA_PER_MIN", "5"))
+    CHECKOUT_FLOOD_S = float(os.environ.get("CHECKOUT_FLOOD_INTERVAL_S", "60"))
+
+
+    def post(path: str, body: bytes = b"{}") -> None:
+        # nginx placeholders return 404/405 — that's fine, we want the
+        # connection to show up in Hubble flows, the response body is
+        # irrelevant for a sim.
+        try:
+            req = request.Request(
+                f"{GATEWAY}{path}",
+                data=body,
+                headers={"content-type": "application/json"},
+                method="POST",
+            )
+            with request.urlopen(req, timeout=2) as r:
+                r.read(64)
+        except (error.URLError, TimeoutError, OSError):
+            pass
+
+
+    def login_loop() -> None:
+        interval = 60.0 / max(LOGIN_RATE, 0.0001)
+        while True:
+            post("/api/login", b'{"email":"sim@hostel.test","password":"x"}')
+            time.sleep(interval)
+
+
+    def booking_loop() -> None:
+        # Poisson arrivals: inter-arrival gaps are exponential with
+        # mean 60/lambda seconds.
+        mean = 60.0 / max(BOOKING_LAMBDA, 0.0001)
+        while True:
+            payload = ('{"id":"%s"}' % uuid.uuid4()).encode()
+            post("/api/bookings", payload)
+            time.sleep(random.expovariate(1.0 / mean))
+
+
+    def checkout_flood() -> None:
+        # Periodic burst — about 20 quick check-out requests in a
+        # tight loop. Useful for triggering the booking → billing edge.
+        while True:
+            time.sleep(CHECKOUT_FLOOD_S)
+            for _ in range(20):
+                post(f"/api/bookings/{uuid.uuid4()}/check-out")
+
+
+    def main() -> None:
+        print(
+            f"guest-sim -> {GATEWAY} "
+            f"(logins {LOGIN_RATE}/min, bookings ~{BOOKING_LAMBDA}/min, "
+            f"flood every {CHECKOUT_FLOOD_S}s)",
+            flush=True,
+        )
+        threads = [
+            threading.Thread(target=fn, daemon=True, name=fn.__name__)
+            for fn in (login_loop, booking_loop, checkout_flood)
+        ]
+        for t in threads:
+            t.start()
+        for t in threads:
+            t.join()
+
+
+    if __name__ == "__main__":
+        main()

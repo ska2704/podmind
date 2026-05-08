@@ -1,0 +1,31 @@
+[project]
+name = "podmind-ingestor"
+version = "0.1.0"
+description = "Polls Prometheus + Hubble into a 5-minute SQLite buffer."
+requires-python = ">=3.11"
+dependencies = [
+    "fastapi>=0.115",
+    "uvicorn[standard]>=0.30",
+    "httpx>=0.27",
+    "grpcio>=1.60",
+    "aiosqlite>=0.20",
+    "pydantic>=2.6",
+    "podmind-contracts",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=8.0",
+    "pytest-asyncio>=0.23",
+    "grpcio-tools>=1.60",
+]
+
+[tool.uv.sources]
+podmind-contracts = { workspace = true }
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["app"]

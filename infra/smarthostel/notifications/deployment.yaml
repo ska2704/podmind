@@ -1,0 +1,48 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: notifications
+  namespace: sh-ops
+  labels:
+    app: notifications
+    podmind.component: smarthostel-service
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: notifications
+  template:
+    metadata:
+      labels:
+        app: notifications
+        podmind.component: smarthostel-service
+    spec:
+      containers:
+        - name: notifications
+          image: nginx:alpine
+          ports:
+            - name: http
+              containerPort: 80
+          env:
+            - name: SERVICE_NAME
+              value: notifications
+          resources:
+            requests:
+              cpu: 50m
+              memory: 64Mi
+            limits:
+              cpu: 200m
+              memory: 256Mi
+          readinessProbe:
+            httpGet: { path: /, port: http }
+            periodSeconds: 5
+          livenessProbe:
+            httpGet: { path: /, port: http }
+            periodSeconds: 10
+          volumeMounts:
+            - name: data
+              mountPath: /var/lib/notifications
+      volumes:
+        - name: data
+          persistentVolumeClaim:
+            claimName: notifications

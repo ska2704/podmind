@@ -1,0 +1,58 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: ingestor
+  namespace: podmind
+  labels:
+    app: ingestor
+    podmind.component: ingestor
+spec:
+  replicas: 1
+  strategy:
+    # Recreate rather than rolling — the buffer PVC is RWO, two pods
+    # would fight for the WAL.
+    type: Recreate
+  selector:
+    matchLabels:
+      app: ingestor
+  template:
+    metadata:
+      labels:
+        app: ingestor
+        podmind.component: ingestor
+    spec:
+      containers:
+        - name: ingestor
+          image: podmind/ingestor:dev
+          imagePullPolicy: IfNotPresent
+          ports:
+            - name: http
+              containerPort: 8000
+          env:
+            - name: PROM_URL
+              value: http://prometheus.monitoring:9090
+            - name: HUBBLE_RELAY_ADDR
+              value: hubble-relay.kube-system:80
+            - name: BUFFER_PATH
+              value: /var/lib/podmind/buffer.sqlite
+          resources:
+            requests:
+              cpu: 100m
+              memory: 128Mi
+            limits:
+              cpu: 500m
+              memory: 512Mi
+          readinessProbe:
+            httpGet: { path: /readyz, port: http }
+            periodSeconds: 5
+          livenessProbe:
+            httpGet: { path: /healthz, port: http }
+            periodSeconds: 10
+            initialDelaySeconds: 5
+          volumeMounts:
+            - name: buffer
+              mountPath: /var/lib/podmind
+      volumes:
+        - name: buffer
+          persistentVolumeClaim:
+            claimName: ingestor-buffer

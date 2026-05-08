@@ -1,0 +1,48 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: billing
+  namespace: sh-ops
+  labels:
+    app: billing
+    podmind.component: smarthostel-service
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: billing
+  template:
+    metadata:
+      labels:
+        app: billing
+        podmind.component: smarthostel-service
+    spec:
+      containers:
+        - name: billing
+          image: nginx:alpine
+          ports:
+            - name: http
+              containerPort: 80
+          env:
+            - name: SERVICE_NAME
+              value: billing
+          resources:
+            requests:
+              cpu: 50m
+              memory: 64Mi
+            limits:
+              cpu: 200m
+              memory: 256Mi
+          readinessProbe:
+            httpGet: { path: /, port: http }
+            periodSeconds: 5
+          livenessProbe:
+            httpGet: { path: /, port: http }
+            periodSeconds: 10
+          volumeMounts:
+            - name: data
+              mountPath: /var/lib/billing
+      volumes:
+        - name: data
+          persistentVolumeClaim:
+            claimName: billing

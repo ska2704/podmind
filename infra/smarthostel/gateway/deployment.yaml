@@ -1,0 +1,48 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: gateway
+  namespace: sh-core
+  labels:
+    app: gateway
+    podmind.component: smarthostel-service
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: gateway
+  template:
+    metadata:
+      labels:
+        app: gateway
+        podmind.component: smarthostel-service
+    spec:
+      containers:
+        - name: gateway
+          image: nginx:alpine
+          ports:
+            - name: http
+              containerPort: 80
+          env:
+            - name: SERVICE_NAME
+              value: gateway
+          resources:
+            requests:
+              cpu: 50m
+              memory: 64Mi
+            limits:
+              cpu: 200m
+              memory: 256Mi
+          readinessProbe:
+            httpGet: { path: /, port: http }
+            periodSeconds: 5
+          livenessProbe:
+            httpGet: { path: /, port: http }
+            periodSeconds: 10
+          volumeMounts:
+            - name: data
+              mountPath: /var/lib/gateway
+      volumes:
+        - name: data
+          persistentVolumeClaim:
+            claimName: gateway

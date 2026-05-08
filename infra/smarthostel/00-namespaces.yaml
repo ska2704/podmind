@@ -1,0 +1,23 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: sh-core
+  labels:
+    podmind.tier: smarthostel
+    podmind.namespace: sh-core
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: sh-edge
+  labels:
+    podmind.tier: smarthostel
+    podmind.namespace: sh-edge
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: sh-ops
+  labels:
+    podmind.tier: smarthostel
+    podmind.namespace: sh-ops

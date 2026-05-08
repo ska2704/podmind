@@ -1,0 +1,48 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: energy-meter
+  namespace: sh-edge
+  labels:
+    app: energy-meter
+    podmind.component: smarthostel-service
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: energy-meter
+  template:
+    metadata:
+      labels:
+        app: energy-meter
+        podmind.component: smarthostel-service
+    spec:
+      containers:
+        - name: energy-meter
+          image: nginx:alpine
+          ports:
+            - name: http
+              containerPort: 80
+          env:
+            - name: SERVICE_NAME
+              value: energy-meter
+          resources:
+            requests:
+              cpu: 50m
+              memory: 64Mi
+            limits:
+              cpu: 500m
+              memory: 512Mi
+          readinessProbe:
+            httpGet: { path: /, port: http }
+            periodSeconds: 5
+          livenessProbe:
+            httpGet: { path: /, port: http }
+            periodSeconds: 10
+          volumeMounts:
+            - name: data
+              mountPath: /var/lib/energy-meter
+      volumes:
+        - name: data
+          persistentVolumeClaim:
+            claimName: energy-meter

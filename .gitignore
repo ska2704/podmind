@@ -1,0 +1,18 @@
+__pycache__/
+*.pyc
+*.pyo
+.pytest_cache/
+.ruff_cache/
+.venv/
+.env
+*.egg-info/
+dist/
+build/
+
+# local SQLite buffers (ingestor + smarthostel services in dev)
+*.sqlite
+*.sqlite-wal
+*.sqlite-shm
+
+# generated proto stubs are committed, but cache files aren't
+services/ingestor/app/_proto/__pycache__/

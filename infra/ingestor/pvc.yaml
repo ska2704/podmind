@@ -1,0 +1,14 @@
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: ingestor-buffer
+  namespace: podmind
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      # The buffer is bounded at 5 minutes by the TTL sweep, so it
+      # doesn't actually need this much. Headroom for write spikes,
+      # WAL files, and SQLite's free-page churn.
+      storage: 1Gi
