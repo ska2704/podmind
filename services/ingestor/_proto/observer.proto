@@ -1,7 +1,10 @@
-// Minimal Hubble Observer proto subset. Field numbers and message
-// shapes mirror the upstream definitions at:
-//   https://github.com/cilium/cilium/blob/main/api/v1/observer/observer.proto
-//   https://github.com/cilium/cilium/blob/main/api/v1/flow/flow.proto
+// Minimal Hubble Observer proto subset. Field numbers and message shapes
+// mirror the upstream Cilium v1.19.1 definitions at:
+//   https://raw.githubusercontent.com/cilium/cilium/v1.19.1/api/v1/observer/observer.proto
+//   https://raw.githubusercontent.com/cilium/cilium/v1.19.1/api/v1/flow/flow.proto
+//
+// Pinned to the v1.19.1 tag, not main — when bumping Cilium, re-pin the
+// tag here and verify field numbers haven't drifted before regenerating.
 //
 // Vendored on purpose: keeps the ingestor's runtime deps to grpcio only,
 // no upstream cilium proto package on the path. When upstream adds
@@ -38,20 +41,25 @@ enum Verdict {
   ERROR = 3;
   AUDIT = 4;
   REDIRECTED = 5;
+  TRACED = 6;
+  TRANSLATED = 7;
 }
 
 message Flow {
   google.protobuf.Timestamp time = 1;
   Verdict verdict = 2;
-  Endpoint source = 13;
-  Endpoint destination = 14;
-  Layer4 l4 = 7;
+  // Upstream Flow.l4 sits at tag 6. Tag 7 is `reserved` upstream
+  // ("removed, do not use") — our previous proto put l4 there by
+  // mistake, which silently dropped all L4 fields on decode.
+  Layer4 l4 = 6;
+  Endpoint source = 8;
+  Endpoint destination = 9;
 }
 
 message Endpoint {
   uint32 id = 1;
-  string namespace = 4;
-  string pod_name = 6;
+  string namespace = 3;
+  string pod_name = 5;
 }
 
 message Layer4 {
