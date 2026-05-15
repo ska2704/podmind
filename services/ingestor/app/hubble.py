@@ -1,8 +1,14 @@
-"""Hubble Relay flow streamer.
+"""Hubble flow streamer.
 
-Opens a server-streaming GetFlows RPC against the Relay, maps each flow
-into a HubbleFlow, batches them up, writes to the buffer. Reconnects
-with exponential backoff on transport errors.
+Opens a server-streaming GetFlows RPC against Hubble's gRPC endpoint and
+maps each flow into a HubbleFlow, batched into the buffer. The endpoint
+is a plain gRPC address string so the same code targets either:
+
+- the cilium-agent's local unix socket (`unix:///var/run/cilium/hubble.sock`)
+  — our single-node default, no TCP/TLS hop
+- hubble-relay (`hubble-relay.kube-system:80`) — for multi-node setups
+
+Reconnects with exponential backoff on transport errors.
 """
 
 import asyncio
@@ -68,7 +74,7 @@ def flow_to_record(flow) -> HubbleFlow:
 
 async def stream_forever(
     buffer: Buffer,
-    relay_addr: str,
+    hubble_addr: str,
     *,
     batch_size: int = 32,
     batch_timeout_s: float = 1.0,
@@ -77,7 +83,7 @@ async def stream_forever(
     backoff = 1.0
     while True:
         try:
-            async with grpc.aio.insecure_channel(relay_addr) as channel:
+            async with grpc.aio.insecure_channel(hubble_addr) as channel:
                 stub = observer_pb2_grpc.ObserverStub(channel)
                 request = observer_pb2.GetFlowsRequest(follow=True)
 

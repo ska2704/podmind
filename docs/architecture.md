@@ -87,11 +87,37 @@ on the usual 15s interval.
 
 The **ingestor** is the single point where these two streams meet. It
 polls Prometheus on a 1s instant-query cadence — one sample per series
-per tick, no overlapping windows. It tails Hubble Relay's
-`Observer.GetFlows` gRPC stream. Both go to a SQLite buffer in WAL
-mode that holds the last five minutes; a sweeper trims anything older
-every 30 seconds. Agents and the coordinator query this buffer, not
-Prometheus or Hubble directly. The buffer is the contract.
+per tick, no overlapping windows. It tails Hubble's `Observer.GetFlows`
+gRPC stream directly against the cilium-agent's local unix socket
+(`/var/run/cilium/hubble.sock`), mounted into the pod via a read-only
+hostPath. Both streams land in a SQLite buffer in WAL mode that holds
+the last five minutes; a sweeper trims anything older every 30 seconds.
+Agents and the coordinator query this buffer, not Prometheus or Hubble
+directly. The buffer is the contract.
+
+We evaluated the hubble-relay aggregation path and the per-node unix
+socket path. Relay is required for multi-node aggregation but adds a
+TCP/TLS hop that, on single-node deployments, adds latency and
+operational surface without scaling benefit. We chose the socket path
+for single-node and kept the relay path available via a single env-var
+change (`HUBBLE_ADDR=hubble-relay.kube-system:80`).
+
+**On the hostPath choice.** The ingestor mounts `/var/run/cilium` from
+the node, read-only, to reach the agent's Hubble socket. Three points
+worth naming:
+
+1. The cilium-agent that owns the socket already runs as root with
+   `hostNetwork: true` and `CAP_SYS_ADMIN` on the same node — strictly
+   more privilege than what the ingestor needs. There is no privilege
+   escalation: the ingestor is reading data the agent freely publishes
+   over the socket to any local listener.
+2. The mount is read-only and scoped to one directory. The ingestor
+   cannot write to the socket or sibling files; it can only `connect()`
+   and stream flows.
+3. Single-node demo design. Multi-node production would route through
+   hubble-relay (which sidesteps the hostPath entirely) or use a
+   DaemonSet pattern — explicitly out of scope for this build but
+   handled by changing one env var.
 
 The four **agents** each watch one signal class — CPU/throttling,
 memory/RSS slope, PVC I/O latency and fsync stalls, eBPF flow churn.
@@ -142,6 +168,17 @@ panel docks right.
   cascades look like.
 - **FastAPI everywhere** — same shape across services: lifespan,
   async endpoints, Pydantic models, pytest. One stack, learned once.
+
+## Operational notes
+
+**Cluster-restart recovery.** When the k3d/k3s node restarts, the
+cilium-agent comes back up and recreates its Hubble unix socket inside
+`/var/run/cilium`. The ingestor's gRPC client is already in its
+exponential-backoff reconnect loop (because the socket disappeared
+while the agent was down); as soon as the socket is back, the next
+dial attempt succeeds and flow streaming resumes. No manual
+intervention, no ingestor restart, no pod recreate. Verified against
+`kubectl rollout restart -n kube-system ds/cilium`.
 
 ## Tier boundaries
 

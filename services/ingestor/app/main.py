@@ -39,7 +39,7 @@ async def lifespan(app: FastAPI):
     log.info(
         "ingestor up: prom=%s hubble=%s buffer=%s",
         config.prom_url,
-        config.hubble_relay_addr,
+        config.hubble_addr,
         config.buffer_path,
     )
 
@@ -49,7 +49,7 @@ async def lifespan(app: FastAPI):
             name="prom-poll",
         ),
         asyncio.create_task(
-            hubble.stream_forever(buffer, config.hubble_relay_addr),
+            hubble.stream_forever(buffer, config.hubble_addr),
             name="hubble-stream",
         ),
         asyncio.create_task(_sweep_forever(), name="sweep"),

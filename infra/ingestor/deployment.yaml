@@ -31,8 +31,10 @@ spec:
           env:
             - name: PROM_URL
               value: http://prometheus.monitoring:9090
-            - name: HUBBLE_RELAY_ADDR
-              value: hubble-relay.kube-system:80
+            # Single-node: talk to the cilium-agent's local Hubble socket.
+            # Multi-node: switch to unix-less form e.g. hubble-relay.kube-system:80.
+            - name: HUBBLE_ADDR
+              value: unix:///var/run/cilium/hubble.sock
             - name: BUFFER_PATH
               value: /var/lib/podmind/buffer.sqlite
           resources:
@@ -52,7 +54,18 @@ spec:
           volumeMounts:
             - name: buffer
               mountPath: /var/lib/podmind
+            # Cilium-agent hostpath: parent dir, not the socket directly,
+            # so the mount survives agent restarts (the socket appears
+            # and disappears inside this dir). Start read-only; relax
+            # only if AF_UNIX connect needs write access on some kernels.
+            - name: cilium-run
+              mountPath: /var/run/cilium
+              readOnly: true
       volumes:
         - name: buffer
           persistentVolumeClaim:
             claimName: ingestor-buffer
+        - name: cilium-run
+          hostPath:
+            path: /var/run/cilium
+            type: Directory

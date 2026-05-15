@@ -3,9 +3,16 @@
 # Idempotent: every step checks before doing anything destructive,
 # so re-running this is a no-op once the cluster is healthy.
 #
-# Assumes: bash, curl, sudo, kubectl, helm, docker available on PATH.
-# If they're missing, the script tells you what to install rather
-# than trying to be clever.
+# Works against either:
+#   - a cluster you've already created (k3d, kind, native k3s, ...) —
+#     in which case we leave it alone and just install Cilium etc.
+#   - a clean host with no cluster — we install native k3s with
+#     flannel disabled so Cilium can take over the CNI.
+#
+# Assumes: bash, curl, kubectl, helm, docker on PATH. cilium-cli is
+# installed automatically if missing; sudo is needed only for the
+# native-k3s path. k3d is required if the active context is a k3d
+# cluster (used for image import).
 
 set -euo pipefail
 
@@ -19,35 +26,40 @@ require() {
     fi
 }
 require curl
-require sudo
-
-# kubectl and helm are required *after* k3s is up; we'll check then.
+require kubectl
 
 REPO_ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 cd "$REPO_ROOT"
 
 # ----------------------------------------------------------------------
-# 1) k3s
+# 1) cluster — detect existing, install native k3s only if nothing is up
 
-if ! command -v k3s >/dev/null 2>&1; then
-    echo ">> installing k3s (cilium will replace flannel)"
-    curl -sfL https://get.k3s.io | \
-        INSTALL_K3S_EXEC="--flannel-backend=none --disable-network-policy --disable=traefik --write-kubeconfig-mode=644" \
-        sh -
+if kubectl cluster-info >/dev/null 2>&1; then
+    echo "== cluster already reachable via current kubeconfig"
 else
-    echo "== k3s already installed"
+    require sudo
+    if ! command -v k3s >/dev/null 2>&1; then
+        echo ">> installing k3s (cilium will replace flannel)"
+        curl -sfL https://get.k3s.io | \
+            INSTALL_K3S_EXEC="--flannel-backend=none --disable-network-policy --disable=traefik --write-kubeconfig-mode=644" \
+            sh -
+    fi
+    export KUBECONFIG="${KUBECONFIG:-/etc/rancher/k3s/k3s.yaml}"
+
+    for _ in $(seq 1 30); do
+        if kubectl get --raw='/healthz' >/dev/null 2>&1; then break; fi
+        sleep 1
+    done
 fi
 
-export KUBECONFIG="${KUBECONFIG:-/etc/rancher/k3s/k3s.yaml}"
-require kubectl
-
-# wait for the api server to be reachable before we start applying things
-for _ in $(seq 1 30); do
-    if kubectl get --raw='/healthz' >/dev/null 2>&1; then
-        break
-    fi
-    sleep 1
-done
+# Cluster flavour drives Cilium API-server discovery and image import.
+# k3d uses the convention `k3d-<cluster>` for the kubeconfig context.
+K3D_CLUSTER=""
+ctx="$(kubectl config current-context 2>/dev/null || true)"
+if [[ "$ctx" == k3d-* ]]; then
+    K3D_CLUSTER="${ctx#k3d-}"
+    echo "== detected k3d cluster: $K3D_CLUSTER"
+fi
 
 # ----------------------------------------------------------------------
 # 2) cilium-cli + cilium with hubble
@@ -66,16 +78,29 @@ if ! command -v cilium >/dev/null 2>&1; then
     rm -rf "$tmp"
 fi
 
+CILIUM_VERSION="1.19.1"
+
 if ! kubectl -n kube-system get deployment cilium-operator >/dev/null 2>&1; then
-    echo ">> installing cilium with hubble"
+    echo ">> installing cilium $CILIUM_VERSION with hubble"
+
+    # We leave kube-proxy in place rather than running Cilium in
+    # kube-proxy-replacement mode. On k3d the eBPF datapath that kpr
+    # installs disrupts host→apiserver traffic; the failure surfaces
+    # the moment the cilium-agent goes Ready. Hubble flow capture —
+    # the actual Tier-1 dependency — does not require kpr.
     cilium install \
+        --version "$CILIUM_VERSION" \
         --set hubble.enabled=true \
-        --set hubble.relay.enabled=true \
-        --set hubble.metrics.enableOpenMetrics=true
-    cilium status --wait
+        --set hubble.relay.enabled=true
 else
     echo "== cilium already installed"
 fi
+
+# Always wait, even on re-runs — covers the case where a previous run
+# applied the operator but the daemonset hadn't finished rolling out
+# before everything else started.
+echo ">> waiting for cilium to be healthy"
+cilium status --wait
 
 # ----------------------------------------------------------------------
 # 3) prometheus stack via helm
@@ -125,7 +150,7 @@ echo ">> applying guest-sim"
 kubectl apply -k infra/guest-sim/
 
 # ----------------------------------------------------------------------
-# 5) ingestor — build image, import into k3s containerd, apply manifests
+# 5) ingestor — build image, import into the cluster, apply manifests
 
 require docker
 
@@ -136,8 +161,15 @@ else
     echo "== ingestor image already built (rebuild manually with: docker build -t podmind/ingestor:dev -f services/ingestor/Dockerfile .)"
 fi
 
-echo ">> importing ingestor image into k3s containerd"
-docker image save podmind/ingestor:dev | sudo k3s ctr images import -
+echo ">> importing ingestor image into the cluster"
+if [[ -n "$K3D_CLUSTER" ]]; then
+    require k3d
+    k3d image import podmind/ingestor:dev -c "$K3D_CLUSTER"
+elif command -v k3s >/dev/null 2>&1; then
+    docker image save podmind/ingestor:dev | sudo k3s ctr images import -
+else
+    echo "!! unknown cluster type; ingestor pod will go ImagePullBackOff" >&2
+fi
 
 echo ">> applying ingestor"
 kubectl apply -k infra/ingestor/
