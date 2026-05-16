@@ -16,3 +16,4 @@ build/
 
 # generated proto stubs are committed, but cache files aren't
 services/ingestor/app/_proto/__pycache__/
+.claude/
