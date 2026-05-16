@@ -1,5 +1,5 @@
 from .findings import Finding, Severity
-from .flows import HubbleFlow, Verdict
+from .flows import HubbleFlow, ObservationPoint, Verdict
 from .metrics import MetricRecord
 from .tools import (
     CausalEdge,
@@ -29,6 +29,7 @@ __all__ = [
     "HubbleFlow",
     "MetricRecord",
     "Neighbor",
+    "ObservationPoint",
     "PodMetricSeries",
     "Severity",
     "Verdict",

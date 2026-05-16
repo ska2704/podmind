@@ -33,6 +33,24 @@ _VERDICT = {
     observer_pb2.REDIRECTED: "REDIRECTED",
 }
 
+_OBS = {
+    observer_pb2.UNKNOWN_POINT: "UNKNOWN_POINT",
+    observer_pb2.TO_PROXY: "TO_PROXY",
+    observer_pb2.TO_HOST: "TO_HOST",
+    observer_pb2.TO_STACK: "TO_STACK",
+    observer_pb2.TO_OVERLAY: "TO_OVERLAY",
+    observer_pb2.FROM_ENDPOINT: "FROM_ENDPOINT",
+    observer_pb2.FROM_PROXY: "FROM_PROXY",
+    observer_pb2.FROM_HOST: "FROM_HOST",
+    observer_pb2.FROM_STACK: "FROM_STACK",
+    observer_pb2.FROM_OVERLAY: "FROM_OVERLAY",
+    observer_pb2.FROM_NETWORK: "FROM_NETWORK",
+    observer_pb2.TO_NETWORK: "TO_NETWORK",
+    observer_pb2.FROM_CRYPTO: "FROM_CRYPTO",
+    observer_pb2.TO_CRYPTO: "TO_CRYPTO",
+    observer_pb2.TO_ENDPOINT: "TO_ENDPOINT",
+}
+
 
 def _ts_from_pb(pb_ts) -> datetime:
     if pb_ts is None or (pb_ts.seconds == 0 and pb_ts.nanos == 0):
@@ -41,6 +59,10 @@ def _ts_from_pb(pb_ts) -> datetime:
 
 
 def flow_to_record(flow) -> HubbleFlow:
+    # Hubble emits Endpoint on both halves of a flow but leaves pod_name=""
+    # and namespace="" on the side it can't identify (TO_STACK loses dst,
+    # TO_ENDPOINT loses src after socketLB SNATs the source). Treat empty
+    # strings as "no identity" so consumer queries can rely on IS NULL.
     src = flow.source if flow.HasField("source") else None
     dst = flow.destination if flow.HasField("destination") else None
 
@@ -61,14 +83,15 @@ def flow_to_record(flow) -> HubbleFlow:
     return HubbleFlow(
         ts=_ts_from_pb(flow.time),
         verdict=_VERDICT.get(flow.verdict, "UNKNOWN"),
-        src_pod=src.pod_name if src else None,
-        src_namespace=src.namespace if src else None,
-        dst_pod=dst.pod_name if dst else None,
-        dst_namespace=dst.namespace if dst else None,
+        src_pod=(src.pod_name or None) if src else None,
+        src_namespace=(src.namespace or None) if src else None,
+        dst_pod=(dst.pod_name or None) if dst else None,
+        dst_namespace=(dst.namespace or None) if dst else None,
         l4_protocol=proto,
         src_port=src_port,
         dst_port=dst_port,
         bytes=None,
+        observation_point=_OBS.get(flow.trace_observation_point),
     )
 
 

@@ -88,10 +88,20 @@ if ! kubectl -n kube-system get deployment cilium-operator >/dev/null 2>&1; then
     # installs disrupts host→apiserver traffic; the failure surfaces
     # the moment the cilium-agent goes Ready. Hubble flow capture —
     # the actual Tier-1 dependency — does not require kpr.
+    #
+    # socketLB.enabled=true is required on k3d for the pod-to-host-IP
+    # datapath (Prometheus scraping kubelet, cAdvisor, node-exporter
+    # over the host network). Without it those scrapes time out and
+    # the metrics buffer stays empty. Side effect: service-VIP traffic
+    # is rewritten in the host netns, so Hubble splits each pod-to-pod-
+    # via-VIP flow into two halves with single-sided identity — the
+    # ingestor records the trace_observation_point so consumers can
+    # pair the halves.
     cilium install \
         --version "$CILIUM_VERSION" \
         --set hubble.enabled=true \
-        --set hubble.relay.enabled=true
+        --set hubble.relay.enabled=true \
+        --set socketLB.enabled=true
 else
     echo "== cilium already installed"
 fi

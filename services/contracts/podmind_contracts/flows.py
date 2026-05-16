@@ -8,6 +8,28 @@ from pydantic import BaseModel, ConfigDict
 # at the ingestor edge.
 Verdict = Literal["FORWARDED", "DROPPED", "ERROR", "AUDIT", "REDIRECTED", "UNKNOWN"]
 
+# Cilium's trace_observation_point enum, mirrored from upstream v1.19.1.
+# With socketLB enabled, service-VIP traffic appears in Hubble as two
+# halves with single-sided identity (TO_STACK carries the sender, TO_ENDPOINT
+# carries the receiver); consumers pair halves by 5-tuple + this field.
+ObservationPoint = Literal[
+    "UNKNOWN_POINT",
+    "TO_PROXY",
+    "TO_HOST",
+    "TO_STACK",
+    "TO_OVERLAY",
+    "FROM_ENDPOINT",
+    "FROM_PROXY",
+    "FROM_HOST",
+    "FROM_STACK",
+    "FROM_OVERLAY",
+    "FROM_NETWORK",
+    "TO_NETWORK",
+    "FROM_CRYPTO",
+    "TO_CRYPTO",
+    "TO_ENDPOINT",
+]
+
 
 class HubbleFlow(BaseModel):
     model_config = ConfigDict(frozen=True, extra="forbid")
@@ -27,3 +49,5 @@ class HubbleFlow(BaseModel):
     # Hubble doesn't always carry byte counts (depends on collector config),
     # so this is allowed to be missing.
     bytes: int | None = None
+
+    observation_point: ObservationPoint | None = None

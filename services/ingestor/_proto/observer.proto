@@ -54,6 +54,36 @@ message Flow {
   Layer4 l4 = 6;
   Endpoint source = 8;
   Endpoint destination = 9;
+  // Datapath observation point. Cilium emits each network event as two
+  // flows from different points — TO_STACK from the sender's POV (with
+  // source identity), TO_ENDPOINT from the receiver's POV (with dest
+  // identity). With socketLB enabled, service-VIP traffic never has
+  // both sides identified on the same flow, so consumers must pair
+  // halves; observation_point is what tells them which half they have.
+  // Field tag is 24 (NOT 30 — verify upstream before changing).
+  TraceObservationPoint trace_observation_point = 24;
+}
+
+// Mirrored 1:1 from upstream Cilium v1.19.1:
+//   https://raw.githubusercontent.com/cilium/cilium/v1.19.1/api/v1/flow/flow.proto
+// TraceObservationPoint matches upstream lines 185–232 exactly (incl.
+// the deliberate 11→101 gap).
+enum TraceObservationPoint {
+  UNKNOWN_POINT = 0;
+  TO_PROXY = 1;
+  TO_HOST = 2;
+  TO_STACK = 3;
+  TO_OVERLAY = 4;
+  FROM_ENDPOINT = 5;
+  FROM_PROXY = 6;
+  FROM_HOST = 7;
+  FROM_STACK = 8;
+  FROM_OVERLAY = 9;
+  FROM_NETWORK = 10;
+  TO_NETWORK = 11;
+  FROM_CRYPTO = 12;
+  TO_CRYPTO = 13;
+  TO_ENDPOINT = 101;
 }
 
 message Endpoint {

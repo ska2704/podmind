@@ -27,20 +27,22 @@ CREATE INDEX IF NOT EXISTS metrics_ts     ON metrics(ts);
 CREATE INDEX IF NOT EXISTS metrics_pod_ts ON metrics(pod, ts);
 
 CREATE TABLE IF NOT EXISTS flows (
-    id            INTEGER PRIMARY KEY,
-    ts            REAL    NOT NULL,
-    verdict       TEXT    NOT NULL,
-    src_pod       TEXT,
-    src_namespace TEXT,
-    dst_pod       TEXT,
-    dst_namespace TEXT,
-    l4_protocol   TEXT,
-    src_port      INTEGER,
-    dst_port      INTEGER,
-    bytes         INTEGER
+    id                INTEGER PRIMARY KEY,
+    ts                REAL    NOT NULL,
+    verdict           TEXT    NOT NULL,
+    src_pod           TEXT,
+    src_namespace     TEXT,
+    dst_pod           TEXT,
+    dst_namespace     TEXT,
+    l4_protocol       TEXT,
+    src_port          INTEGER,
+    dst_port          INTEGER,
+    bytes             INTEGER,
+    observation_point TEXT
 );
 CREATE INDEX IF NOT EXISTS flows_ts     ON flows(ts);
 CREATE INDEX IF NOT EXISTS flows_src_ts ON flows(src_pod, ts);
+CREATE INDEX IF NOT EXISTS flows_dst_ts ON flows(dst_pod, ts);
 """
 
 
@@ -112,13 +114,15 @@ class Buffer:
                 f.src_port,
                 f.dst_port,
                 f.bytes,
+                f.observation_point,
             )
             for f in flows
         ]
         assert self._db is not None
         await self._db.executemany(
             "INSERT INTO flows(ts, verdict, src_pod, src_namespace, dst_pod, dst_namespace,"
-            " l4_protocol, src_port, dst_port, bytes) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+            " l4_protocol, src_port, dst_port, bytes, observation_point)"
+            " VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
             rows,
         )
         await self._db.commit()
@@ -180,7 +184,7 @@ class Buffer:
             args.append(dst)
         sql = (
             "SELECT ts, verdict, src_pod, src_namespace, dst_pod, dst_namespace,"
-            " l4_protocol, src_port, dst_port, bytes FROM flows"
+            " l4_protocol, src_port, dst_port, bytes, observation_point FROM flows"
             f" WHERE {' AND '.join(clauses)} ORDER BY ts"
         )
         assert self._db is not None
@@ -199,6 +203,7 @@ class Buffer:
                 src_port=r[7],
                 dst_port=r[8],
                 bytes=r[9],
+                observation_point=r[10],
             )
             for r in rows
         ]

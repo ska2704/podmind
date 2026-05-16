@@ -168,9 +168,31 @@ Three issues fought us, in order:
   memory of upstream field numbers and got five of them wrong, silently
   zeroing pod identity, L4, ports on every captured flow until
   end-to-end testing surfaced it. Fixed in commit `e798f30` by fetching
-  from `v1.19.1` of `cilium/cilium`. Worth a CI check that diffs
-  vendored upstream files against the pinned reference — would have
-  caught both this and the transitive-dep issue above.
+  from `v1.19.1` of `cilium/cilium`. **Third instance of the same
+  lesson:** when adding `trace_observation_point`, the first-draft tag
+  was 30 (wrong; upstream is 24) and the enum was missing `FROM_CRYPTO`
+  and `TO_CRYPTO`. Caught only because we re-fetched upstream before
+  regenerating stubs. Worth a CI check that diffs vendored upstream
+  files against the pinned reference — would have caught all three
+  instances of this and the transitive-dep issue above. Until that CI
+  check exists, the rule is: **field numbers and enum values are
+  copied 1:1 from upstream, never guessed, never recalled from
+  memory.**
+- **socketLB.enabled=true is required on k3d for the pod-to-host-IP
+  datapath.** Without it, Prometheus scrapes of kubelet, cAdvisor, and
+  node-exporter (all served on the host network) time out and the
+  metrics buffer stays empty. Now baked into `scripts/dev-up.sh`.
+- **socketLB rewrites service VIPs in the host netns**, so a single
+  pod-to-pod-via-service-VIP connection appears in Hubble as two flows
+  from different observation points: `TO_STACK` carries the sender's
+  pod identity but loses the receiver (destination shown as the service
+  VIP), `TO_ENDPOINT` carries the receiver's pod identity but loses
+  the sender (source shown as the host IP after SNAT). Neither half on
+  its own satisfies `src=X AND dst=Y` queries. The ingestor now
+  records `trace_observation_point` on every flow so consumers can
+  pair halves by 5-tuple + observation point. The alternative would be
+  to disable socketLB and bring back kube-proxy, but that's the path
+  we just fixed away from.
 
 ### Next phase — agents
 

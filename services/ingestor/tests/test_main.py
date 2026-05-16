@@ -83,12 +83,15 @@ async def test_get_flows_round_trip(client):
                 verdict="FORWARDED",
                 src_pod="gateway-1",
                 dst_pod="booking-1",
+                observation_point="TO_ENDPOINT",
             )
         ]
     )
     r = await c.get("/buffer/flows", params={"since": "-30s"})
     assert r.status_code == 200
-    assert r.json()["count"] == 1
+    body = r.json()
+    assert body["count"] == 1
+    assert body["rows"][0]["observation_point"] == "TO_ENDPOINT"
 
 
 async def test_bad_since_returns_400(client):

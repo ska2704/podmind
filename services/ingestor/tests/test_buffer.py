@@ -71,24 +71,35 @@ async def test_flow_insert_and_query(buf):
             verdict="FORWARDED",
             src_pod="gateway-1",
             src_namespace="sh-core",
+            dst_pod=None,
+            dst_namespace=None,
+            l4_protocol="TCP",
+            src_port=4444,
+            dst_port=8000,
+            observation_point="TO_STACK",
+        ),
+        HubbleFlow(
+            ts=now,
+            verdict="FORWARDED",
+            src_pod=None,
+            src_namespace=None,
             dst_pod="booking-1",
             dst_namespace="sh-core",
             l4_protocol="TCP",
             src_port=4444,
             dst_port=8000,
-        ),
-        HubbleFlow(
-            ts=now,
-            verdict="DROPPED",
-            src_pod="gateway-1",
-            dst_pod="auth-1",
+            observation_point="TO_ENDPOINT",
         ),
     ]
     await buf.insert_flows(flows)
 
-    rows = await buf.query_flows(now - timedelta(seconds=10), src="gateway-1")
-    assert len(rows) == 2
-    assert {r.verdict for r in rows} == {"FORWARDED", "DROPPED"}
+    by_src = await buf.query_flows(now - timedelta(seconds=10), src="gateway-1")
+    assert len(by_src) == 1
+    assert by_src[0].observation_point == "TO_STACK"
+
+    by_dst = await buf.query_flows(now - timedelta(seconds=10), dst="booking-1")
+    assert len(by_dst) == 1
+    assert by_dst[0].observation_point == "TO_ENDPOINT"
 
 
 async def test_sweep_drops_old_rows(buf):

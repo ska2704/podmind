@@ -75,6 +75,7 @@ def test_hubble_flow_roundtrip():
         src_port=44321,
         dst_port=8000,
         bytes=812,
+        observation_point="TO_STACK",
     )
     _roundtrip(f)
 
@@ -84,6 +85,15 @@ def test_hubble_flow_unknown_verdict_rejected():
         HubbleFlow(
             ts=datetime.now(UTC),
             verdict="MAYBE",  # type: ignore[arg-type]
+        )
+
+
+def test_hubble_flow_unknown_observation_point_rejected():
+    with pytest.raises(ValidationError):
+        HubbleFlow(
+            ts=datetime.now(UTC),
+            verdict="FORWARDED",
+            observation_point="SOMEWHERE",  # type: ignore[arg-type]
         )
 
 

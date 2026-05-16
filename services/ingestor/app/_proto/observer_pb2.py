@@ -25,29 +25,31 @@ _sym_db = _symbol_database.Default()
 from google.protobuf import timestamp_pb2 as google_dot_protobuf_dot_timestamp__pb2
 
 
-DESCRIPTOR = _descriptor_pool.Default().AddSerializedFile(b'\n\x0eobserver.proto\x12\x08observer\x1a\x1fgoogle/protobuf/timestamp.proto\"1\n\x0fGetFlowsRequest\x12\x0e\n\x06number\x18\x01 \x01(\x04\x12\x0e\n\x06\x66ollow\x18\x03 \x01(\x08\"\x83\x01\n\x10GetFlowsResponse\x12\x1e\n\x04\x66low\x18\x01 \x01(\x0b\x32\x0e.observer.FlowH\x00\x12\x12\n\tnode_name\x18\xe8\x07 \x01(\t\x12)\n\x04time\x18\xe9\x07 \x01(\x0b\x32\x1a.google.protobuf.TimestampB\x10\n\x0eresponse_types\"\xbf\x01\n\x04\x46low\x12(\n\x04time\x18\x01 \x01(\x0b\x32\x1a.google.protobuf.Timestamp\x12\"\n\x07verdict\x18\x02 \x01(\x0e\x32\x11.observer.Verdict\x12\x1c\n\x02l4\x18\x06 \x01(\x0b\x32\x10.observer.Layer4\x12\"\n\x06source\x18\x08 \x01(\x0b\x32\x12.observer.Endpoint\x12\'\n\x0b\x64\x65stination\x18\t \x01(\x0b\x32\x12.observer.Endpoint\";\n\x08\x45ndpoint\x12\n\n\x02id\x18\x01 \x01(\r\x12\x11\n\tnamespace\x18\x03 \x01(\t\x12\x10\n\x08pod_name\x18\x05 \x01(\t\"P\n\x06Layer4\x12\x1c\n\x03tcp\x18\x01 \x01(\x0b\x32\r.observer.TCPH\x00\x12\x1c\n\x03udp\x18\x02 \x01(\x0b\x32\r.observer.UDPH\x00\x42\n\n\x08protocol\"4\n\x03TCP\x12\x13\n\x0bsource_port\x18\x01 \x01(\r\x12\x18\n\x10\x64\x65stination_port\x18\x02 \x01(\r\"4\n\x03UDP\x12\x13\n\x0bsource_port\x18\x01 \x01(\r\x12\x18\n\x10\x64\x65stination_port\x18\x02 \x01(\r*|\n\x07Verdict\x12\x13\n\x0fVERDICT_UNKNOWN\x10\x00\x12\r\n\tFORWARDED\x10\x01\x12\x0b\n\x07\x44ROPPED\x10\x02\x12\t\n\x05\x45RROR\x10\x03\x12\t\n\x05\x41UDIT\x10\x04\x12\x0e\n\nREDIRECTED\x10\x05\x12\n\n\x06TRACED\x10\x06\x12\x0e\n\nTRANSLATED\x10\x07\x32O\n\x08Observer\x12\x43\n\x08GetFlows\x12\x19.observer.GetFlowsRequest\x1a\x1a.observer.GetFlowsResponse0\x01\x62\x06proto3')
+DESCRIPTOR = _descriptor_pool.Default().AddSerializedFile(b'\n\x0eobserver.proto\x12\x08observer\x1a\x1fgoogle/protobuf/timestamp.proto\"1\n\x0fGetFlowsRequest\x12\x0e\n\x06number\x18\x01 \x01(\x04\x12\x0e\n\x06\x66ollow\x18\x03 \x01(\x08\"\x83\x01\n\x10GetFlowsResponse\x12\x1e\n\x04\x66low\x18\x01 \x01(\x0b\x32\x0e.observer.FlowH\x00\x12\x12\n\tnode_name\x18\xe8\x07 \x01(\t\x12)\n\x04time\x18\xe9\x07 \x01(\x0b\x32\x1a.google.protobuf.TimestampB\x10\n\x0eresponse_types\"\x81\x02\n\x04\x46low\x12(\n\x04time\x18\x01 \x01(\x0b\x32\x1a.google.protobuf.Timestamp\x12\"\n\x07verdict\x18\x02 \x01(\x0e\x32\x11.observer.Verdict\x12\x1c\n\x02l4\x18\x06 \x01(\x0b\x32\x10.observer.Layer4\x12\"\n\x06source\x18\x08 \x01(\x0b\x32\x12.observer.Endpoint\x12\'\n\x0b\x64\x65stination\x18\t \x01(\x0b\x32\x12.observer.Endpoint\x12@\n\x17trace_observation_point\x18\x18 \x01(\x0e\x32\x1f.observer.TraceObservationPoint\";\n\x08\x45ndpoint\x12\n\n\x02id\x18\x01 \x01(\r\x12\x11\n\tnamespace\x18\x03 \x01(\t\x12\x10\n\x08pod_name\x18\x05 \x01(\t\"P\n\x06Layer4\x12\x1c\n\x03tcp\x18\x01 \x01(\x0b\x32\r.observer.TCPH\x00\x12\x1c\n\x03udp\x18\x02 \x01(\x0b\x32\r.observer.UDPH\x00\x42\n\n\x08protocol\"4\n\x03TCP\x12\x13\n\x0bsource_port\x18\x01 \x01(\r\x12\x18\n\x10\x64\x65stination_port\x18\x02 \x01(\r\"4\n\x03UDP\x12\x13\n\x0bsource_port\x18\x01 \x01(\r\x12\x18\n\x10\x64\x65stination_port\x18\x02 \x01(\r*|\n\x07Verdict\x12\x13\n\x0fVERDICT_UNKNOWN\x10\x00\x12\r\n\tFORWARDED\x10\x01\x12\x0b\n\x07\x44ROPPED\x10\x02\x12\t\n\x05\x45RROR\x10\x03\x12\t\n\x05\x41UDIT\x10\x04\x12\x0e\n\nREDIRECTED\x10\x05\x12\n\n\x06TRACED\x10\x06\x12\x0e\n\nTRANSLATED\x10\x07*\x8a\x02\n\x15TraceObservationPoint\x12\x11\n\rUNKNOWN_POINT\x10\x00\x12\x0c\n\x08TO_PROXY\x10\x01\x12\x0b\n\x07TO_HOST\x10\x02\x12\x0c\n\x08TO_STACK\x10\x03\x12\x0e\n\nTO_OVERLAY\x10\x04\x12\x11\n\rFROM_ENDPOINT\x10\x05\x12\x0e\n\nFROM_PROXY\x10\x06\x12\r\n\tFROM_HOST\x10\x07\x12\x0e\n\nFROM_STACK\x10\x08\x12\x10\n\x0c\x46ROM_OVERLAY\x10\t\x12\x10\n\x0c\x46ROM_NETWORK\x10\n\x12\x0e\n\nTO_NETWORK\x10\x0b\x12\x0f\n\x0b\x46ROM_CRYPTO\x10\x0c\x12\r\n\tTO_CRYPTO\x10\r\x12\x0f\n\x0bTO_ENDPOINT\x10\x65\x32O\n\x08Observer\x12\x43\n\x08GetFlows\x12\x19.observer.GetFlowsRequest\x1a\x1a.observer.GetFlowsResponse0\x01\x62\x06proto3')
 
 _globals = globals()
 _builder.BuildMessageAndEnumDescriptors(DESCRIPTOR, _globals)
 _builder.BuildTopDescriptorsAndMessages(DESCRIPTOR, 'observer_pb2', _globals)
 if not _descriptor._USE_C_DESCRIPTORS:
   DESCRIPTOR._loaded_options = None
-  _globals['_VERDICT']._serialized_start=691
-  _globals['_VERDICT']._serialized_end=815
+  _globals['_VERDICT']._serialized_start=757
+  _globals['_VERDICT']._serialized_end=881
+  _globals['_TRACEOBSERVATIONPOINT']._serialized_start=884
+  _globals['_TRACEOBSERVATIONPOINT']._serialized_end=1150
   _globals['_GETFLOWSREQUEST']._serialized_start=61
   _globals['_GETFLOWSREQUEST']._serialized_end=110
   _globals['_GETFLOWSRESPONSE']._serialized_start=113
   _globals['_GETFLOWSRESPONSE']._serialized_end=244
   _globals['_FLOW']._serialized_start=247
-  _globals['_FLOW']._serialized_end=438
-  _globals['_ENDPOINT']._serialized_start=440
-  _globals['_ENDPOINT']._serialized_end=499
-  _globals['_LAYER4']._serialized_start=501
-  _globals['_LAYER4']._serialized_end=581
-  _globals['_TCP']._serialized_start=583
-  _globals['_TCP']._serialized_end=635
-  _globals['_UDP']._serialized_start=637
-  _globals['_UDP']._serialized_end=689
-  _globals['_OBSERVER']._serialized_start=817
-  _globals['_OBSERVER']._serialized_end=896
+  _globals['_FLOW']._serialized_end=504
+  _globals['_ENDPOINT']._serialized_start=506
+  _globals['_ENDPOINT']._serialized_end=565
+  _globals['_LAYER4']._serialized_start=567
+  _globals['_LAYER4']._serialized_end=647
+  _globals['_TCP']._serialized_start=649
+  _globals['_TCP']._serialized_end=701
+  _globals['_UDP']._serialized_start=703
+  _globals['_UDP']._serialized_end=755
+  _globals['_OBSERVER']._serialized_start=1152
+  _globals['_OBSERVER']._serialized_end=1231
 # @@protoc_insertion_point(module_scope)
