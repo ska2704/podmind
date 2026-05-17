@@ -1,5 +1,5 @@
 [tool.uv.workspace]
-members = ["services/contracts", "services/ingestor"]
+members = ["services/contracts", "services/ingestor", "services/cpu-agent"]
 
 [tool.ruff]
 line-length = 100

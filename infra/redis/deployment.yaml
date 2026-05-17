@@ -1,0 +1,53 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: redis
+  namespace: podmind
+  labels:
+    app: redis
+    podmind.component: redis
+spec:
+  replicas: 1
+  # No PVC behind us; rolling restart would still drop pub/sub clients
+  # for a beat. Recreate keeps the failure mode simple to reason about.
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app: redis
+  template:
+    metadata:
+      labels:
+        app: redis
+        podmind.component: redis
+    spec:
+      containers:
+        - name: redis
+          image: redis:7-alpine
+          imagePullPolicy: IfNotPresent
+          args:
+            # Disable on-disk persistence — we use Redis purely as a
+            # pub/sub fan-out for agent Findings. AOF/RDB on an
+            # emptyDir wastes I/O and clutters the container fs.
+            - redis-server
+            - --save
+            - ""
+            - --appendonly
+            - "no"
+          ports:
+            - name: redis
+              containerPort: 6379
+          resources:
+            requests:
+              cpu: 100m
+              memory: 128Mi
+            limits:
+              cpu: 200m
+              memory: 256Mi
+          readinessProbe:
+            tcpSocket: { port: redis }
+            periodSeconds: 5
+          livenessProbe:
+            tcpSocket: { port: redis }
+            periodSeconds: 10
+            initialDelaySeconds: 5

@@ -1,4 +1,4 @@
-from .findings import Finding, Severity
+from .findings import BaselineSummary, Finding, Severity
 from .flows import HubbleFlow, ObservationPoint, Verdict
 from .metrics import MetricRecord
 from .tools import (
@@ -16,6 +16,7 @@ from .tools import (
 )
 
 __all__ = [
+    "BaselineSummary",
     "CausalEdge",
     "Finding",
     "GetCausalParentsRequest",

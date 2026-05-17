@@ -8,6 +8,7 @@ from datetime import UTC, datetime
 
 import pytest
 from podmind_contracts import (
+    BaselineSummary,
     CausalEdge,
     Finding,
     GetCausalParentsRequest,
@@ -99,30 +100,54 @@ def test_hubble_flow_unknown_observation_point_rejected():
 
 def test_finding_roundtrip():
     f = Finding(
-        id="01HXXX",
+        id="cpu-agent:hvac-controller-aaa:2026-05-06T12:00:00+00:00",
         ts=datetime(2026, 5, 6, 12, 0, tzinfo=UTC),
-        agent="cpu",
+        agent_id="cpu-agent",
         pod="hvac-controller-aaa",
         namespace="sh-edge",
-        kind="anomaly",
-        severity="warning",
-        summary="CPU throttling spike, 4x baseline",
-        evidence={"throttle_ratio": 0.41, "baseline": 0.10, "window_s": 60},
+        metric_name="cpu_rate",
+        current_value=0.41,
+        anomaly_score=0.73,
+        severity="warn",
+        baseline_window_summary=BaselineSummary(
+            mean=0.10,
+            stddev=0.02,
+            sample_count=60,
+        ),
     )
     _roundtrip(f)
 
 
-def test_finding_rejects_unknown_agent():
+def test_finding_rejects_unknown_severity():
     with pytest.raises(ValidationError):
         Finding(
             id="x",
             ts=datetime.now(UTC),
-            agent="psychic",  # type: ignore[arg-type]
+            agent_id="cpu-agent",
             pod="p",
             namespace="n",
-            kind="anomaly",
+            metric_name="cpu_rate",
+            current_value=0.1,
+            anomaly_score=0.5,
+            severity="warning",  # type: ignore[arg-type]  — old spelling
+            baseline_window_summary=BaselineSummary(mean=0.0, stddev=0.0, sample_count=0),
+        )
+
+
+def test_finding_rejects_extras():
+    with pytest.raises(ValidationError):
+        Finding(
+            id="x",
+            ts=datetime.now(UTC),
+            agent_id="cpu-agent",
+            pod="p",
+            namespace="n",
+            metric_name="cpu_rate",
+            current_value=0.1,
+            anomaly_score=0.5,
             severity="info",
-            summary="...",
+            baseline_window_summary=BaselineSummary(mean=0.0, stddev=0.0, sample_count=0),
+            unknown_field="oops",  # type: ignore[call-arg]
         )
 
 

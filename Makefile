@@ -1,4 +1,4 @@
-.PHONY: protos up down test test-contracts test-ingestor lint
+.PHONY: protos up down test test-contracts test-ingestor test-cpu-agent lint
 
 # Generate Hubble gRPC stubs from the vendored observer.proto.
 # Patches the protoc-emitted absolute import to a package-relative one
@@ -18,17 +18,22 @@ up:
 # still tears the rest down. K3s itself is left running — use
 # k3s-uninstall.sh if you actually want the node gone.
 down:
+	kubectl delete -k infra/cpu-agent/   --ignore-not-found=true
 	kubectl delete -k infra/smarthostel/ --ignore-not-found=true
 	kubectl delete -k infra/guest-sim/   --ignore-not-found=true
 	kubectl delete -k infra/ingestor/    --ignore-not-found=true
+	kubectl delete -k infra/redis/       --ignore-not-found=true
 
-test: test-contracts test-ingestor
+test: test-contracts test-ingestor test-cpu-agent
 
 test-contracts:
 	uv run --package podmind-contracts pytest services/contracts/tests/
 
 test-ingestor:
 	uv run --package podmind-ingestor pytest services/ingestor/tests/
+
+test-cpu-agent:
+	uv run --package podmind-cpu-agent pytest services/cpu-agent/tests/
 
 lint:
 	uv run ruff check services/

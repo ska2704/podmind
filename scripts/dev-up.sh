@@ -160,7 +160,15 @@ echo ">> applying guest-sim"
 kubectl apply -k infra/guest-sim/
 
 # ----------------------------------------------------------------------
-# 5) ingestor — build image, import into the cluster, apply manifests
+# 5) redis — pub/sub bus for agent Findings. No PVC; pub/sub is ephemeral.
+#    Applied before the ingestor so anything in podmind/ that wants to
+#    subscribe on startup finds the service already there.
+
+echo ">> applying redis"
+kubectl apply -k infra/redis/
+
+# ----------------------------------------------------------------------
+# 6) ingestor — build image, import into the cluster, apply manifests
 
 require docker
 
@@ -185,7 +193,29 @@ echo ">> applying ingestor"
 kubectl apply -k infra/ingestor/
 
 # ----------------------------------------------------------------------
-# 6) wait for everything
+# 7) cpu-agent — build image, import into the cluster, apply manifests
+
+if ! docker image inspect podmind/cpu-agent:dev >/dev/null 2>&1; then
+    echo ">> building cpu-agent image"
+    docker build -t podmind/cpu-agent:dev -f services/cpu-agent/Dockerfile .
+else
+    echo "== cpu-agent image already built (rebuild manually with: docker build -t podmind/cpu-agent:dev -f services/cpu-agent/Dockerfile .)"
+fi
+
+echo ">> importing cpu-agent image into the cluster"
+if [[ -n "$K3D_CLUSTER" ]]; then
+    k3d image import podmind/cpu-agent:dev -c "$K3D_CLUSTER"
+elif command -v k3s >/dev/null 2>&1; then
+    docker image save podmind/cpu-agent:dev | sudo k3s ctr images import -
+else
+    echo "!! unknown cluster type; cpu-agent pod will go ImagePullBackOff" >&2
+fi
+
+echo ">> applying cpu-agent"
+kubectl apply -k infra/cpu-agent/
+
+# ----------------------------------------------------------------------
+# 8) wait for everything
 
 for ns in sh-core sh-edge sh-ops podmind; do
     echo ">> waiting for deployments in $ns"

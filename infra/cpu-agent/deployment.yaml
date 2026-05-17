@@ -1,0 +1,72 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: cpu-agent
+  namespace: podmind
+  labels:
+    app: cpu-agent
+    podmind.component: cpu-agent
+    podmind.role: agent
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: cpu-agent
+  template:
+    metadata:
+      labels:
+        app: cpu-agent
+        podmind.component: cpu-agent
+        podmind.role: agent
+    spec:
+      containers:
+        - name: cpu-agent
+          image: podmind/cpu-agent:dev
+          imagePullPolicy: IfNotPresent
+          ports:
+            - name: http
+              containerPort: 8000
+          env:
+            - name: INGESTOR_URL
+              value: http://ingestor.podmind:8000
+            - name: REDIS_URL
+              value: redis://redis.podmind:6379/0
+            - name: POLL_INTERVAL_S
+              value: "5"
+            - name: WINDOW_S
+              value: "300"
+            - name: MIN_SAMPLES
+              value: "30"
+            - name: REFIT_INTERVAL_S
+              value: "30"
+            # Threshold for publishing a Finding. Empirical (stage 6 of the
+            # cpu-agent bring-up): with contamination=0.05, baseline pods
+            # cluster at score 0.50-0.60 (IF's intrinsic noise floor), and
+            # only ~3% of baseline findings cross 0.7. Real CPU stress on
+            # an idle pod scores 0.7-0.89 for the first 30-45s before the
+            # next refit folds stressed samples into the training set and
+            # the score collapses. A lag-aware fitting alternative was
+            # evaluated and rejected (it 7x'd baseline FP rate). For the
+            # v1 demo, a quiet baseline matters more than sustained
+            # detection past 45s — see podmind-brief.md follow-ups.
+            - name: ANOMALY_THRESHOLD
+              value: "0.7"
+            - name: FINDINGS_CHANNEL
+              value: findings.cpu
+            - name: AGENT_ID
+              value: cpu-agent
+          # Isolation Forest refits can spike briefly — see brief stage 5.
+          resources:
+            requests:
+              cpu: 100m
+              memory: 128Mi
+            limits:
+              cpu: 500m
+              memory: 512Mi
+          readinessProbe:
+            httpGet: { path: /readyz, port: http }
+            periodSeconds: 5
+          livenessProbe:
+            httpGet: { path: /healthz, port: http }
+            periodSeconds: 10
+            initialDelaySeconds: 5

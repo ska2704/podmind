@@ -193,6 +193,23 @@ Three issues fought us, in order:
   pair halves by 5-tuple + observation point. The alternative would be
   to disable socketLB and bring back kube-proxy, but that's the path
   we just fixed away from.
+- **CPU agent's IsolationForest exhibits a known limitation: anomaly
+  scores collapse after 30-45 seconds of sustained stress** because
+  the model refits on a window that includes the stressed samples,
+  treating persistent deviation as baseline. We evaluated a lag-aware
+  fitting strategy (exclude the most recent 60 s from training data)
+  which fixed the collapse but increased baseline false-positive rate
+  from 3.6 to 26 findings per minute — an unacceptable trade-off for
+  the demo. For the submission, the agent detects stress cleanly
+  within the first 30-45 seconds, which matches the chaos demo's
+  intended duration. A production deployment would need either:
+  - a longer REFIT_INTERVAL_S combined with manual triggers, or
+  - robust scaling (e.g., `RobustScaler`) and IsolationForest's
+    `decision_function` with hand-tuned thresholds per metric, or
+  - a different algorithm entirely (e.g., NAB-style streaming
+    detectors).
+
+  Documented as a known limitation; future work.
 
 ### Next phase — agents
 

@@ -1,18 +1,32 @@
 from datetime import datetime
 from typing import Literal
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict
 
-Severity = Literal["info", "warning", "critical"]
-AgentName = Literal["cpu", "memory", "storage", "network"]
+Severity = Literal["info", "warn", "critical"]
+
+
+class BaselineSummary(BaseModel):
+    """Stats over the window the detector fit on, before scoring the
+    most recent sample. The coordinator passes these to the LLM as
+    context — keep them small and numeric.
+    """
+
+    model_config = ConfigDict(frozen=True, extra="forbid")
+
+    mean: float
+    stddev: float
+    sample_count: int
 
 
 class Finding(BaseModel):
-    """An agent's claim about a pod. Published to Redis pub/sub.
+    """An agent's claim about a pod, published to Redis pub/sub.
 
-    `evidence` is a free-form bag of numbers and strings — keep it small,
-    the coordinator passes it to the LLM as context. The agents own the
-    schema of what they put in here.
+    Each agent publishes to its own channel (e.g. `findings.cpu`); the
+    coordinator subscribes to `findings.*` and fans them out from there.
+
+    `id` is the dedupe key — pick a ULID or `{agent_id}:{pod}:{ts.isoformat()}`.
+    Same id from the same agent must mean the same logical event.
     """
 
     model_config = ConfigDict(frozen=True, extra="forbid")
@@ -20,12 +34,13 @@ class Finding(BaseModel):
     id: str
     ts: datetime
 
-    agent: AgentName
+    agent_id: str
     pod: str
     namespace: str
 
-    kind: str
-    severity: Severity
-    summary: str
+    metric_name: str
+    current_value: float
+    anomaly_score: float
 
-    evidence: dict[str, float | int | str] = Field(default_factory=dict)
+    severity: Severity
+    baseline_window_summary: BaselineSummary
