@@ -1,0 +1,66 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: coordinator
+  namespace: podmind
+  labels:
+    app: coordinator
+    podmind.component: coordinator
+    podmind.role: coordinator
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: coordinator
+  template:
+    metadata:
+      labels:
+        app: coordinator
+        podmind.component: coordinator
+        podmind.role: coordinator
+    spec:
+      containers:
+        - name: coordinator
+          image: podmind/coordinator:dev
+          imagePullPolicy: IfNotPresent
+          ports:
+            - name: http
+              containerPort: 8000
+          env:
+            - name: INGESTOR_URL
+              value: http://ingestor.podmind:8000
+            - name: REDIS_URL
+              value: redis://redis.podmind:6379/0
+            # Ollama runs on the Mac host (Metal acceleration) — k3d
+            # under OrbStack auto-resolves host.docker.internal from
+            # inside the cluster. Multi-node would need a different
+            # plan (run Ollama on the control-plane host or move to
+            # a proper LLM service).
+            - name: OLLAMA_URL
+              value: http://host.docker.internal:11434
+            - name: MODEL_NAME
+              value: qwen2.5:1.5b-instruct-q4_K_M
+            - name: FINDINGS_CHANNEL
+              value: findings.cpu
+            - name: FINDINGS_CACHE_SIZE
+              value: "200"
+            - name: MAX_TOOL_ROUNDS
+              value: "5"
+          resources:
+            requests:
+              cpu: 200m
+              memory: 256Mi
+            limits:
+              cpu: 500m
+              memory: 512Mi
+          readinessProbe:
+            httpGet: { path: /readyz, port: http }
+            periodSeconds: 10
+            # /readyz checks Ollama — give the host daemon room to
+            # start up before declaring the pod unready.
+            initialDelaySeconds: 5
+            failureThreshold: 6
+          livenessProbe:
+            httpGet: { path: /healthz, port: http }
+            periodSeconds: 15
+            initialDelaySeconds: 5

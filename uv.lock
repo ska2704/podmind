@@ -5,6 +5,7 @@ requires-python = ">=3.11"
 [manifest]
 members = [
     "podmind-contracts",
+    "podmind-coordinator",
     "podmind-cpu-agent",
     "podmind-ingestor",
 ]
@@ -422,6 +423,40 @@ dev = [
 requires-dist = [
     { name = "pydantic", specifier = ">=2.6" },
     { name = "pytest", marker = "extra == 'dev'", specifier = ">=8.0" },
+]
+provides-extras = ["dev"]
+
+[[package]]
+name = "podmind-coordinator"
+version = "0.1.0"
+source = { editable = "services/coordinator" }
+dependencies = [
+    { name = "fastapi" },
+    { name = "httpx" },
+    { name = "podmind-contracts" },
+    { name = "pydantic" },
+    { name = "redis" },
+    { name = "uvicorn", extra = ["standard"] },
+]
+
+[package.optional-dependencies]
+dev = [
+    { name = "pytest" },
+    { name = "pytest-asyncio" },
+    { name = "respx" },
+]
+
+[package.metadata]
+requires-dist = [
+    { name = "fastapi", specifier = ">=0.115" },
+    { name = "httpx", specifier = ">=0.27" },
+    { name = "podmind-contracts", editable = "services/contracts" },
+    { name = "pydantic", specifier = ">=2.6" },
+    { name = "pytest", marker = "extra == 'dev'", specifier = ">=8.0" },
+    { name = "pytest-asyncio", marker = "extra == 'dev'", specifier = ">=0.23" },
+    { name = "redis", specifier = ">=5.0" },
+    { name = "respx", marker = "extra == 'dev'", specifier = ">=0.21" },
+    { name = "uvicorn", extras = ["standard"], specifier = ">=0.30" },
 ]
 provides-extras = ["dev"]
 

@@ -215,7 +215,33 @@ echo ">> applying cpu-agent"
 kubectl apply -k infra/cpu-agent/
 
 # ----------------------------------------------------------------------
-# 8) wait for everything
+# 8) coordinator — natural-language query layer (Ollama tool-calling).
+#    Talks to the Mac host's Ollama daemon via host.docker.internal,
+#    which k3d-under-OrbStack resolves automatically. If you're on a
+#    different runtime you'll need to add a hostAliases or run Ollama
+#    in-cluster instead.
+
+if ! docker image inspect podmind/coordinator:dev >/dev/null 2>&1; then
+    echo ">> building coordinator image"
+    docker build -t podmind/coordinator:dev -f services/coordinator/Dockerfile .
+else
+    echo "== coordinator image already built (rebuild manually with: docker build -t podmind/coordinator:dev -f services/coordinator/Dockerfile .)"
+fi
+
+echo ">> importing coordinator image into the cluster"
+if [[ -n "$K3D_CLUSTER" ]]; then
+    k3d image import podmind/coordinator:dev -c "$K3D_CLUSTER"
+elif command -v k3s >/dev/null 2>&1; then
+    docker image save podmind/coordinator:dev | sudo k3s ctr images import -
+else
+    echo "!! unknown cluster type; coordinator pod will go ImagePullBackOff" >&2
+fi
+
+echo ">> applying coordinator"
+kubectl apply -k infra/coordinator/
+
+# ----------------------------------------------------------------------
+# 9) wait for everything
 
 for ns in sh-core sh-edge sh-ops podmind; do
     echo ">> waiting for deployments in $ns"
@@ -232,6 +258,7 @@ cat <<EOF
 podmind is up.
 
 ingestor      kubectl -n podmind     port-forward svc/ingestor 8000:8000
+coordinator   kubectl -n podmind     port-forward svc/coordinator 8001:8000
 prometheus    kubectl -n monitoring  port-forward svc/prometheus 9090:9090
 hubble relay  kubectl -n kube-system port-forward svc/hubble-relay 4245:80
 
