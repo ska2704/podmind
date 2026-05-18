@@ -20,6 +20,7 @@ from redis.asyncio import Redis
 from .config import Config
 from .findings_cache import FindingsCache, run_subscriber
 from .llm import ask as llm_ask
+from .orchestrator import collect_known_pods, deterministic_ask, extract_pod_short
 from .tools import TOOL_SCHEMAS, dispatch
 
 logging.basicConfig(
@@ -137,10 +138,18 @@ async def readyz():
 
 @app.post("/ask", response_model=AskResponse)
 async def ask(req: AskRequest):
+    """Dispatch on whether we can pin down a specific pod in the question:
+
+    - If the question mentions a known pod (by its short Deployment name),
+      run the deterministic 3-tool path. This is the production-shape
+      call: guaranteed coverage, no autonomy.
+    - If we can't pin down a pod, fall back to the autonomous LLM tool
+      loop — useful for cluster-wide questions like "what is broken
+      right now?" where the model needs to discover the subject itself.
+    """
     if state.http is None or state.cache is None:
         raise HTTPException(503, "coordinator not initialised")
     if not state.ollama_reachable:
-        # One re-check before giving up — host Ollama may have come back.
         state.ollama_reachable = await _ping_ollama(state.http)
         if not state.ollama_reachable:
             raise HTTPException(503, f"ollama unreachable at {config.ollama_url}")
@@ -148,26 +157,46 @@ async def ask(req: AskRequest):
     cache = state.cache
     http = state.http
 
-    async def _dispatch(name: str, args: dict[str, Any]) -> dict[str, Any]:
-        return await dispatch(
-            name,
-            args,
+    try:
+        shorts = await collect_known_pods(
             client=http,
-            cache=cache,
             ingestor_url=config.ingestor_url,
             metric_query=config.default_metric_query,
+            cache=cache,
         )
+        pod_short = extract_pod_short(req.question, shorts)
 
-    try:
-        result = await llm_ask(
-            client=http,
-            ollama_url=config.ollama_url,
-            model=config.model_name,
-            question=req.question,
-            tools=TOOL_SCHEMAS,
-            dispatch=_dispatch,
-            max_rounds=config.max_tool_rounds,
-        )
+        if pod_short is not None:
+            log.info("ask: deterministic path, pod=%s", pod_short)
+            result = await deterministic_ask(
+                config=config,
+                client=http,
+                cache=cache,
+                question=req.question,
+                pod_short=pod_short,
+            )
+        else:
+            log.info("ask: autonomous path, no pod identified in question")
+
+            async def _dispatch(name: str, args: dict[str, Any]) -> dict[str, Any]:
+                return await dispatch(
+                    name,
+                    args,
+                    client=http,
+                    cache=cache,
+                    ingestor_url=config.ingestor_url,
+                    metric_query=config.default_metric_query,
+                )
+
+            result = await llm_ask(
+                client=http,
+                ollama_url=config.ollama_url,
+                model=config.model_name,
+                question=req.question,
+                tools=TOOL_SCHEMAS,
+                dispatch=_dispatch,
+                max_rounds=config.max_tool_rounds,
+            )
     except httpx.HTTPError as exc:
         raise HTTPException(502, f"upstream error: {exc}") from exc
     return AskResponse(**result)

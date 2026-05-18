@@ -1,8 +1,9 @@
-"""End-to-end test of /ask with a mocked LLM layer.
+"""End-to-end /ask tests.
 
-We bypass the lifespan entirely and populate `main.state` by hand —
-the tests aren't trying to exercise the subscriber, just the request/
-response plumbing on top of llm_ask.
+We bypass the lifespan (so the Redis subscriber doesn't try to connect)
+and populate `main.state` by hand. /ask is exercised on both dispatch
+paths: deterministic (pod identifiable) and autonomous (pod not in the
+question).
 """
 
 from __future__ import annotations
@@ -49,31 +50,94 @@ async def test_readyz_ok(client):
     assert "ollama" in body
 
 
-async def test_ask_returns_answer_and_tools(client, monkeypatch):
-    async def fake_ask(**kwargs):
+# --- deterministic path ---------------------------------------------------
+
+
+async def test_ask_pod_identified_uses_deterministic_path(client, monkeypatch):
+    """When the question names a known pod, /ask must use the
+    deterministic 3-tool orchestration and NOT fall through to llm_ask.
+    """
+    # The orchestrator's pod extractor reads from cache + ingestor;
+    # stub it to return a known short name.
+    async def fake_collect(**kwargs):
+        return {"hvac-controller": "hvac-controller-aaa-bbbbb"}
+
+    captured = {}
+
+    async def fake_deterministic(*, config, client, cache, question, pod_short):
+        captured["pod_short"] = pod_short
+        captured["question"] = question
         return {
-            "answer": "hvac-controller is running hot.",
+            "answer": "hvac-controller is hot.",
             "tools_called": [
-                {"name": "get_recent_anomalies", "arguments": {"pod": "hvac-controller"}},
-                {"name": "get_pod_metrics", "arguments": {"pod": "hvac-controller", "since_s": 120}},
+                {"name": "get_recent_anomalies", "arguments": {"pod": "hvac-controller", "since_s": 300}},
+                {"name": "get_pod_metrics", "arguments": {"pod": "hvac-controller", "since_s": 180}},
+                {"name": "get_pod_neighbors", "arguments": {"pod": "hvac-controller", "since_s": 180}},
             ],
         }
 
-    monkeypatch.setattr(main_module, "llm_ask", fake_ask)
-    r = await client.post("/ask", json={"question": "why is hvac hot?"})
+    async def fake_llm_ask(**kwargs):
+        captured["llm_ask_called"] = True
+        return {"answer": "should not be called", "tools_called": []}
+
+    monkeypatch.setattr(main_module, "collect_known_pods", fake_collect)
+    monkeypatch.setattr(main_module, "deterministic_ask", fake_deterministic)
+    monkeypatch.setattr(main_module, "llm_ask", fake_llm_ask)
+
+    r = await client.post("/ask", json={"question": "what is happening with hvac-controller?"})
     assert r.status_code == 200
     body = r.json()
-    assert body["answer"] == "hvac-controller is running hot."
-    assert len(body["tools_called"]) == 2
-    assert body["tools_called"][0]["name"] == "get_recent_anomalies"
+    assert body["answer"] == "hvac-controller is hot."
+    names = [tc["name"] for tc in body["tools_called"]]
+    assert names == ["get_recent_anomalies", "get_pod_metrics", "get_pod_neighbors"]
+    assert captured["pod_short"] == "hvac-controller"
+    assert "llm_ask_called" not in captured
+
+
+# --- autonomous fallback --------------------------------------------------
+
+
+async def test_ask_no_pod_identified_falls_back_to_llm_loop(client, monkeypatch):
+    """When the question doesn't name a known pod, fall back to the
+    autonomous tool-calling loop."""
+
+    async def fake_collect(**kwargs):
+        return {"hvac-controller": "hvac-controller-aaa"}  # nothing matching the question below
+
+    async def fake_deterministic(**kwargs):
+        raise AssertionError("deterministic path should not run")
+
+    async def fake_llm_ask(**kwargs):
+        return {
+            "answer": "Cluster is degraded.",
+            "tools_called": [
+                {"name": "get_recent_anomalies", "arguments": {}},
+            ],
+        }
+
+    monkeypatch.setattr(main_module, "collect_known_pods", fake_collect)
+    monkeypatch.setattr(main_module, "deterministic_ask", fake_deterministic)
+    monkeypatch.setattr(main_module, "llm_ask", fake_llm_ask)
+
+    r = await client.post("/ask", json={"question": "what is broken in the cluster?"})
+    assert r.status_code == 200
+    assert r.json()["answer"] == "Cluster is degraded."
+
+
+# --- error paths ----------------------------------------------------------
 
 
 async def test_ask_returns_502_on_upstream_http_error(client, monkeypatch):
+    async def fake_collect(**kwargs):
+        return {"hvac-controller": "hvac-controller-aaa"}
+
     async def explodes(**kwargs):
         raise httpx.ConnectError("ollama gone")
 
-    monkeypatch.setattr(main_module, "llm_ask", explodes)
-    r = await client.post("/ask", json={"question": "anything?"})
+    monkeypatch.setattr(main_module, "collect_known_pods", fake_collect)
+    monkeypatch.setattr(main_module, "deterministic_ask", explodes)
+
+    r = await client.post("/ask", json={"question": "what is happening with hvac-controller?"})
     assert r.status_code == 502
     assert "upstream" in r.json()["detail"].lower()
 
