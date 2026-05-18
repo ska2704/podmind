@@ -120,6 +120,25 @@ async def healthz():
     return {"status": "ok"}
 
 
+@app.get("/findings/recent")
+async def findings_recent(
+    since_s: int = 60,
+    pod: str | None = None,
+) -> list[dict[str, Any]]:
+    """Recent Findings, optionally filtered by pod-name substring.
+
+    The frontend polls this to drive the pod list's anomaly badges
+    and the dependency graph's node colouring. We never push pub/sub
+    to the browser — this is the only path findings reach the UI.
+    """
+    if state.cache is None:
+        raise HTTPException(503, "findings cache not initialised")
+    if since_s <= 0:
+        since_s = 60
+    findings = state.cache.get_recent(pod_substring=pod, since_s=since_s)
+    return [f.model_dump(mode="json") for f in findings]
+
+
 @app.get("/readyz")
 async def readyz():
     if state.cache is None or state.http is None:

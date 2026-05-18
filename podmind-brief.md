@@ -210,6 +210,16 @@ Three issues fought us, in order:
     detectors).
 
   Documented as a known limitation; future work.
+- **Screenshot (b)-revised was captured at ANOMALY_THRESHOLD=0.8
+  temporarily** to isolate hvac as the only visible anomaly. At
+  threshold=0.7 (deployed value), 1-2 sh-* pods routinely fire
+  concurrently with deliberate stress due to IF noise floor. For
+  tomorrow's video recording session, evaluate threshold=0.75 as a
+  candidate middle-ground: above noise floor, below confirmed stress
+  band. Day-1 measurement showed 18 findings above 0.7 in 5 minutes
+  baseline; need to bucket those by 0.7-0.75 vs 0.75+ to know whether
+  0.75 is the right cut. One-line change in
+  `infra/cpu-agent/deployment.yaml` if so.
 
 ### Next phase — agents
 

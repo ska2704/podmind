@@ -50,6 +50,78 @@ async def test_readyz_ok(client):
     assert "ollama" in body
 
 
+# --- /findings/recent -----------------------------------------------------
+
+
+async def test_findings_recent_returns_all_when_no_filter(client):
+    from datetime import UTC, datetime, timedelta
+    from podmind_contracts import BaselineSummary, Finding
+
+    def _f(pod: str) -> Finding:
+        return Finding(
+            id=f"x:{pod}",
+            ts=datetime.now(UTC) - timedelta(seconds=2),
+            agent_id="cpu-agent",
+            pod=pod,
+            namespace="sh-edge",
+            metric_name="cpu_rate",
+            current_value=0.2,
+            anomaly_score=0.85,
+            severity="critical",
+            baseline_window_summary=BaselineSummary(mean=0.001, stddev=0.0005, sample_count=200),
+        )
+
+    main_module.state.cache.add(_f("hvac-controller-aaa"))
+    main_module.state.cache.add(_f("room-bbb"))
+
+    r = await client.get("/findings/recent?since_s=60")
+    assert r.status_code == 200
+    body = r.json()
+    assert isinstance(body, list)
+    assert len(body) == 2
+    assert {row["pod"] for row in body} == {"hvac-controller-aaa", "room-bbb"}
+    # Shape sanity: every row carries the fields the UI consumes.
+    for row in body:
+        assert {"id", "ts", "pod", "namespace", "anomaly_score", "severity"} <= row.keys()
+
+
+async def test_findings_recent_filters_by_pod_substring(client):
+    from datetime import UTC, datetime, timedelta
+    from podmind_contracts import BaselineSummary, Finding
+
+    def _f(pod: str) -> Finding:
+        return Finding(
+            id=f"x:{pod}",
+            ts=datetime.now(UTC) - timedelta(seconds=2),
+            agent_id="cpu-agent",
+            pod=pod,
+            namespace="sh-edge",
+            metric_name="cpu_rate",
+            current_value=0.2,
+            anomaly_score=0.85,
+            severity="critical",
+            baseline_window_summary=BaselineSummary(mean=0.001, stddev=0.0005, sample_count=200),
+        )
+
+    main_module.state.cache.add(_f("hvac-controller-aaa"))
+    main_module.state.cache.add(_f("hvac-controller-bbb"))
+    main_module.state.cache.add(_f("gateway-zzz"))
+
+    r = await client.get("/findings/recent?since_s=60&pod=hvac-controller")
+    assert r.status_code == 200
+    body = r.json()
+    assert len(body) == 2
+    assert all("hvac-controller" in row["pod"] for row in body)
+
+
+async def test_findings_recent_coerces_since_s_zero(client):
+    """The same defensive behaviour as the tool layer: since_s<=0 falls
+    back to the default rather than returning nothing."""
+    r = await client.get("/findings/recent?since_s=0")
+    assert r.status_code == 200
+    assert isinstance(r.json(), list)
+
+
 # --- deterministic path ---------------------------------------------------
 
 
